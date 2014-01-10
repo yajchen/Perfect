@@ -15,45 +15,12 @@ typedef unsigned int uint32;
 #define serial
 //#define parallel
 
-
-
-void gauss_row(uint16 **pInp,uint16 **pMid,uint16 pV[gf_dim], uint32 x, uint32 win_floor){
-
-  uint16 r0,r1,r2,r3,r4,r5,r6,r7,r8;
-  uint32 y=0;
-
-  r5=pInp[x][y];
-  r6=pInp[x][y+1];
-  r7=pInp[x][y+2];
-  r8=pInp[x][y+3];
-
-  uint32 yidx;
-
-  for(uint32 win_idx=0;win_idx<win_floor;win_idx++){
-    r0=r5;
-    r1=r6;
-    r2=r7;
-    r3=r8;
-
-    y=win_idx*gf_dim+2*edge;
-    r4=pInp[x][y];
-    r5=pInp[x][y+1];
-    r6=pInp[x][y+2];
-    r7=pInp[x][y+3];
-    r8=pInp[x][y+4]; 
-   
-    yidx= win_idx*gf_dim+edge;  
-    pMid[x][yidx]=  ((r0+r4)*pV[0]+(r1+r3)*pV[1]+r2*pV[2])/17;
-    pMid[x][yidx+1]=((r1+r5)*pV[0]+(r2+r4)*pV[1]+r3*pV[2])/17;
-    pMid[x][yidx+2]=((r2+r6)*pV[0]+(r3+r5)*pV[1]+r4*pV[2])/17;
-    pMid[x][yidx+3]=((r3+r7)*pV[0]+(r4+r6)*pV[1]+r5*pV[2])/17;
-    pMid[x][yidx+4]=((r4+r8)*pV[0]+(r5+r7)*pV[1]+r6*pV[2])/17;
-
-  }
-
-  for(uint32 y=win_floor*gf_dim+edge;y<y_dim-edge;y++){
-    pMid[x][y]=(((pInp[x][y+2]+pInp[x][y-2])*pV[0])+((pInp[x][y+1]+pInp[x][y-1])*pV[1])+((pInp[x][y])*pV[2]))/17;
-  } 
+void conv_row_pixel(uint16 **pInp,uint16 **pMid,uint16 pV[gf_dim],uint32 idx){
+    unsigned int x=idx/((unsigned int)y_dim);
+    unsigned int y_t=idx%((unsigned int)y_dim);
+    if(y_t<y_dim-2*edge){
+      pMid[x][y_t+edge]=(((((unsigned short)pInp[x][edge+y_t+edge]+(unsigned short)pInp[x][edge+y_t+edge-4])*pV[0])+(((unsigned short)pInp[x][edge+y_t+edge-1]+(unsigned short)pInp[x][edge+y_t+edge-3])*pV[1])+(((unsigned short)pInp[x][edge+y_t+edge-2])*pV[2]))/17);
+    }
 }
 
 void gauss_col(uint16 **pMid,uint16 **pOut,uint16 pV[gf_dim], uint32 y, uint32 win_floor){
@@ -118,15 +85,7 @@ for(int xidx=0;xidx<x_dim;xidx++){
    }
 }
  fprintf(stderr,"read in image size=%dx%d\n",x_dim,y_dim);
-/*
- fprintf(stderr,"input image\n");
-for(int xidx=0;xidx<x_dim;xidx++){
-   for(int yidx=0;yidx<y_dim;yidx++){
-    fprintf(stderr,"%d\t",pInp[xidx][yidx]);
-   }
-}
- fprintf(stderr,"\n");
-*/
+
   fprintf(stderr,"partial input image\n");
   int ix=0;
   int iy=0;
@@ -147,7 +106,6 @@ for(int xidx=0;xidx<x_dim;xidx++){
 
 
 
-uint32 xwin_floor=(uint32)floor((double)(y_dim-2*edge)/gf_dim);
 
 uint32 ywin_floor=(uint32)floor((double)(x_dim-2*edge)/gf_dim);
 
@@ -156,8 +114,9 @@ struct timeval tim1,tim2,tim3;
 #ifdef serial
 gettimeofday(&tim1, NULL); 
 /////////along row vector///////////
-for(int x=0;x<x_dim;x++){
-  gauss_row(pInp,pMid,pV,x,xwin_floor); 
+
+for(unsigned int idx=0;idx<x_dim*y_dim;idx++){
+   conv_row_pixel(pInp,pMid,pV,idx);
 }
 gettimeofday(&tim2, NULL); 
 /////////along col vector/////////////
@@ -169,11 +128,14 @@ fprintf(stderr,"serial version\n");
 #endif
 
 #ifdef parallel
+uint32 dim=x_dim*y_dim;
 gettimeofday(&tim1, NULL);  
 /////////along row vector///////////
-    ar::simt_tau::par_for(x_dim, [&](size_t x) {
-         gauss_row(pInp,pMid,pV,x,xwin_floor);
-    });
+
+    ar::simt_tau::par_for(dim, [&](size_t idx) {
+      conv_row_pixel(pInp,pMid,pV,idx);    
+    });  
+
 gettimeofday(&tim2, NULL);
     ar::simt_tau::par_for(y_dim, [&](size_t y) {
          gauss_col(pMid,pOut,pV,y,ywin_floor);
@@ -188,28 +150,6 @@ double t3=tim3.tv_sec+(tim3.tv_usec/1000000.0);
  
 fprintf(stderr,"row@@@ %f seconds elapsed\n", t2-t1);
 fprintf(stderr,"col@@@ %f seconds elapsed\n", t3-t2);
-/*
-fprintf(stderr,"\nMid\n");
-for(int x=0;x<x_dim;x++){
-  for(int y=0;y<y_dim;y++){
-    fprintf(stderr,"%d\t",pMid[x][y]);
-  }
-  fprintf(stderr,"\n");
-}
-
-fprintf(stderr,"\nMid\n");
-
-
-fprintf(stderr,"\nOut\n");
-for(int x=edge;x<x_dim-edge;x++){
-  for(int y=edge;y<y_dim-edge;y++){
-    fprintf(stderr,"%d\t",pOut[x][y]);
-  }
-  fprintf(stderr,"\n");
-}
-
-fprintf(stderr,"\nOut\n");
-*/
 
   ix=0;
   iy=0;
