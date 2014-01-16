@@ -7,28 +7,18 @@
 #include "simt.h"
 #define PI 3.14159265358979323846
 
-#define serial
-//#define parallel
+//#define serial
+#define parallel
 #define WRITEtoFILE
+
+#define WIN_SIZE 5
 
 #define T_PFA 13
 #define PFA_N_TSINC_POINTS_PER_SIDE 6
-/*
 #define N_RANGE 512
 #define N_PULSES 512
 #define PFA_NOUT_RANGE 512
 #define PFA_NOUT_AZIMUTH 512
-*/
-/*
-#define N_RANGE 1024
-#define N_PULSES 1024
-#define PFA_NOUT_RANGE 1024
-#define PFA_NOUT_AZIMUTH 1024
-*/
-#define N_RANGE 2048
-#define N_PULSES 2048
-#define PFA_NOUT_RANGE 2048
-#define PFA_NOUT_AZIMUTH 2048
 
 typedef struct _complex { float re, im; } complex;
 int min(int a,int b){return a<b ? a:b;}
@@ -74,56 +64,87 @@ int find_nearest_azimuth_coord(
     return mid_ind;
 }
 
-void sar_interp2_pixel(
-    size_t idx,
+void sar_interp2_col(
+    size_t col,
+    size_t num_sw,
     complex ** resampled,
     complex ** data,
     float *window,
     double ** input_coords,
     double *output_coords){
-
-    size_t p=idx/PFA_NOUT_RANGE;
-    size_t r=idx%PFA_NOUT_RANGE;
-
 //    fprintf(stderr,"idx=%d\tp=%d\tr=%d\n",idx,p,r);
-
     float input_spacing_avg = 0.0f;
     
     for(size_t i=0;i<N_PULSES-1;++i){
-      input_spacing_avg += fabs(input_coords[r][i+1] - input_coords[r][i]);
+      input_spacing_avg += fabs(input_coords[col][i+1] - input_coords[col][i]);
     }
 
     input_spacing_avg /= (N_PULSES-1);    
     float input_spacing_avg_inv = 1.0f / input_spacing_avg; 
     float scale_factor = fabs(output_coords[1] - output_coords[0]) * input_spacing_avg_inv;
 
-    double  out_coord = output_coords[p];  
+    size_t p;
+    double out_coord;
+    int nearest,pmin,pmax,window_offset;
+    float sinc_arg,sinc_val;
+    complex accum;
 
-    int nearest = find_nearest_azimuth_coord(out_coord, input_coords[r]);
-    if(nearest<0){resampled[p][r].re=0.0f;resampled[p][r].im=0.0f;}
-    else{
-            if (fabs(out_coord-input_coords[r][nearest+1]) < fabs(out_coord-input_coords[r][nearest]))
+    for(size_t sw=0;sw<num_sw;sw++){
+      for(size_t wi=0;wi<WIN_SIZE;wi++){
+        p=sw*WIN_SIZE+wi;
+        out_coord = output_coords[p]; 
+        nearest = find_nearest_azimuth_coord(out_coord, input_coords[col]);
+        if(nearest<0){resampled[p][col].re=0.0f;resampled[p][col].im=0.0f;}
+        else{
+            if (fabs(out_coord-input_coords[col][nearest+1]) < fabs(out_coord-input_coords[col][nearest]))
             {
                 nearest = nearest + 1;
             }      
-        int pmin = max((nearest - PFA_N_TSINC_POINTS_PER_SIDE),0);
-        int pmax = min((N_PULSES-1),(nearest + PFA_N_TSINC_POINTS_PER_SIDE));
-        int window_offset = (nearest - PFA_N_TSINC_POINTS_PER_SIDE < 0) ? (PFA_N_TSINC_POINTS_PER_SIDE - nearest):0;
-        complex accum;
-        accum.re=0.0f;
-        accum.im=0.0f;
-
-        float sinc_arg,sinc_val;
+            pmin = max((nearest - PFA_N_TSINC_POINTS_PER_SIDE),0);
+            pmax = min((N_PULSES-1),(nearest + PFA_N_TSINC_POINTS_PER_SIDE));
+            window_offset = (nearest - PFA_N_TSINC_POINTS_PER_SIDE < 0) ? (PFA_N_TSINC_POINTS_PER_SIDE - nearest):0;
+            accum.re=0.0f;
+            accum.im=0.0f;
+ 
             for (int k = pmin; k <= pmax; ++k)
             {
-                sinc_arg = (out_coord - input_coords[r][k]) * input_spacing_avg_inv;
-                sinc_val = sinc(sinc_arg);
-                accum.re += sinc_val * window[window_offset+(k-pmin)] * data[k][r].re;
-                accum.im += sinc_val * window[window_offset+(k-pmin)] * data[k][r].im; 
+              sinc_arg = (out_coord - input_coords[col][k]) * input_spacing_avg_inv;
+              sinc_val = sinc(sinc_arg);
+              accum.re += sinc_val * window[window_offset+(k-pmin)] * data[k][col].re;
+              accum.im += sinc_val * window[window_offset+(k-pmin)] * data[k][col].im; 
             }
-           resampled[p][r].re = scale_factor * accum.re;
-           resampled[p][r].im = scale_factor * accum.im;        
+            resampled[p][col].re = scale_factor * accum.re;
+            resampled[p][col].im = scale_factor * accum.im;        
+        }
+      }
     }
+
+  for(size_t p=num_sw*WIN_SIZE;p<PFA_NOUT_AZIMUTH;p++){
+        out_coord = output_coords[p]; 
+        nearest = find_nearest_azimuth_coord(out_coord, input_coords[col]);
+        if(nearest<0){resampled[p][col].re=0.0f;resampled[p][col].im=0.0f;}
+        else{
+            if (fabs(out_coord-input_coords[col][nearest+1]) < fabs(out_coord-input_coords[col][nearest]))
+            {
+                nearest = nearest + 1;
+            }      
+            pmin = max((nearest - PFA_N_TSINC_POINTS_PER_SIDE),0);
+            pmax = min((N_PULSES-1),(nearest + PFA_N_TSINC_POINTS_PER_SIDE));
+            window_offset = (nearest - PFA_N_TSINC_POINTS_PER_SIDE < 0) ? (PFA_N_TSINC_POINTS_PER_SIDE - nearest):0;
+            accum.re=0.0f;
+            accum.im=0.0f;
+ 
+            for (int k = pmin; k <= pmax; ++k)
+            {
+              sinc_arg = (out_coord - input_coords[col][k]) * input_spacing_avg_inv;
+              sinc_val = sinc(sinc_arg);
+              accum.re += sinc_val * window[window_offset+(k-pmin)] * data[k][col].re;
+              accum.im += sinc_val * window[window_offset+(k-pmin)] * data[k][col].im; 
+            }
+            resampled[p][col].re = scale_factor * accum.re;
+            resampled[p][col].im = scale_factor * accum.im;        
+        }  
+  } 
 }
 
 
@@ -136,7 +157,7 @@ void read_kern2_data_file(
     FILE *fp=NULL;
     fprintf(stderr,"file open\n");
                    
-    fp = fopen("large_kernel2_input.bin", "rb");
+    fp = fopen("small_kernel2_input.bin", "rb");
     size_t n;
     for(size_t p=0;p<N_PULSES;p++){
       n = fread(*(data+p), sizeof(complex), PFA_NOUT_RANGE, fp);    
@@ -167,7 +188,7 @@ void read_data_file(
     FILE *fp = NULL;
 
     fprintf(stderr,"golen file open\n");
-    fp = fopen("large_golden_kernel2_output.bin", "rb");
+    fp = fopen("small_golden_kernel2_output.bin", "rb");
     nread = fread(data, sizeof(char), num_bytes, fp);
     fprintf(stderr,"%d of input double of input_start_coords\n",nread);
     fclose(fp);
@@ -219,6 +240,7 @@ int main(int argc, char **argv){
     double *output_coords        = new double[PFA_NOUT_AZIMUTH];
     complex *gold_resampled      = new complex[num_resampled_elements];
 
+    size_t num_sw = PFA_NOUT_AZIMUTH/WIN_SIZE;
 
     read_kern2_data_file(
       data,
@@ -236,15 +258,17 @@ int main(int argc, char **argv){
   fprintf(stderr,"serial version start\n");  
 gettimeofday(&tim1, NULL);  
     
-  for(size_t idx=0;idx<num_resampled_elements;idx++){
-    sar_interp2_pixel(
-        idx,
+  for(size_t col=0;col<PFA_NOUT_RANGE;col++){
+    sar_interp2_col(
+        col,
+        num_sw,
         resampled,
         data,
         window,
         input_coords,
-        output_coords);
+        output_coords);     
   }
+
 gettimeofday(&tim2, NULL);
   fprintf(stderr,"serial version end\n");  
 #endif
@@ -252,9 +276,9 @@ gettimeofday(&tim2, NULL);
 #ifdef parallel
   fprintf(stderr,"parallel version start\n");  
 gettimeofday(&tim1, NULL);
-    ar::simt_tau::par_for(num_resampled_elements, [&](size_t idx) {
-      sar_interp2_pixel(idx,resampled,data,window,input_coords,output_coords);
-    });  
+    ar::simt_tau::par_for(PFA_NOUT_RANGE, [&](size_t col) {
+      sar_interp2_col(col,num_sw,resampled,data,window,input_coords,output_coords); 
+    });   
 gettimeofday(&tim2, NULL);
   fprintf(stderr,"parallel version end\n");     
 #endif
