@@ -1,0 +1,5 @@
+/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro/gcc-linaro-aarch64-linux-gnu-4.8-2013.04-20130422_linux/bin/aarch64-linux-gnu-g++ -std=c++0x -Wall -pedantic -O2 -I /home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-workloads/include -I /home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-workloads/libraries/arlib/ -I/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro//rootfs/usr/include -D_GNU_SOURCE -D__tau__ -fno-crossjumping -fno-reorder-blocks -fno-reorder-blocks-and-partition   -c -o interp2-sw.o interp2-sw.cpp
+
+
+/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro/gcc-linaro-aarch64-linux-gnu-4.8-2013.04-20130422_linux/bin/aarch64-linux-gnu-g++ -static -L/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-workloads/libraries/arlib/ -L/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro//rootfs/lib -L/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro//rootfs/usr/lib -o interp2-sw interp2-sw.o
+
