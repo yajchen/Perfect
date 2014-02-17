@@ -1,0 +1,7 @@
+source /home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-workloads/taurc
+make clean
+echo 'start make'
+make
+/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro/gcc-linaro-aarch64-linux-gnu-4.8-2013.04-20130422_linux/bin/aarch64-linux-gnu-g++ -static -L/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-workloads/libraries/arlib/ -L/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro//rootfs/lib -L/home/yajchen/Documents/TAU/UMichiganTAUPackage.r1p0/aegaeon-compiler-linaro//rootfs/usr/lib -o normalize-transform-ip normalize-transform-ip.o m5op_arm.o
+
+
